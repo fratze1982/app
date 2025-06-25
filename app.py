@@ -23,7 +23,7 @@ if len(existing_targets) < len(targets):
     fehlende = set(targets) - set(existing_targets)
     st.warning(f"Diese Zielspalten fehlen im Datensatz und werden ignoriert: {fehlende}")
 
-# Zielspalten sicher in numerische Werte umwandeln (nicht-konvertierbare zu NaN)
+# Zielspalten in numerisch umwandeln (ungültige Werte zu NaN)
 for col in existing_targets:
     df[col] = pd.to_numeric(df[col], errors='coerce')
 
@@ -38,18 +38,19 @@ numerisch = X.select_dtypes(exclude="object").columns.tolist()
 # One-Hot-Encoding der Eingabedaten
 X_encoded = pd.get_dummies(X)
 
-# Gemeinsamen DataFrame bauen, NaN in Zielspalten und Eingaben entfernen
-combined = pd.concat([X_encoded, y], axis=1)
-combined_clean = combined.dropna()
+# NaNs in Features (X_encoded) mit 0 füllen (alternativ anderen Wert nehmen)
+X_encoded = X_encoded.fillna(0)
 
-# Saubere X_encoded und y zurückbekommen
-X_encoded_clean = combined_clean[X_encoded.columns]
-y_clean = combined_clean[y.columns]
+# Nur Zeilen mit vollständigen Zielwerten behalten
+mask = y.notna().all(axis=1)
+X_encoded_clean = X_encoded.loc[mask]
+y_clean = y.loc[mask]
 
 # Debug-Ausgaben
 st.write(f"Shape X_encoded_clean: {X_encoded_clean.shape}")
 st.write(f"Shape y_clean: {y_clean.shape}")
-st.write("NaN-Werte in y_clean:", y_clean.isna().sum())
+st.write("NaN-Werte in y_clean:")
+st.write(y_clean.isna().sum())
 
 # Modell dynamisch wählen
 if y_clean.shape[1] == 1:
