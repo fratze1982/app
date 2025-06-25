@@ -1,5 +1,4 @@
 import pandas as pd
-import numpy as np
 import streamlit as st
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.multioutput import MultiOutputRegressor
@@ -10,14 +9,12 @@ df = pd.read_csv("rezeptdaten.csv", encoding="utf-8", sep=";")
 # Spaltennamen säubern (Leerzeichen am Anfang/Ende entfernen)
 df.columns = df.columns.str.strip()
 
-# Zielgrößen definieren
+# Zielgrößen definieren und säubern
 targets = [
     "Glanz 20", "Glanz 60", "Glanz 85",
     "Viskosität lowshear", "Viskosität midshear", "Brookfield",
     "Kosten Gesamt kg"
 ]
-
-# Zielnamen ebenfalls säubern
 targets = [t.strip() for t in targets]
 
 # Existierende Zielspalten prüfen
@@ -26,17 +23,22 @@ if len(existing_targets) < len(targets):
     fehlende = set(targets) - set(existing_targets)
     st.warning(f"Diese Zielspalten fehlen im Datensatz und werden ignoriert: {fehlende}")
 
-# Nicht-numerische Strings in Zielspalten durch NaN ersetzen
-na_strings = ["-", "n.a.", "unbekannt", ""]  # ggf. anpassen!
+# Zielspalten sicher in numerische Werte umwandeln, nicht-konvertierbare Werte werden NaN
 for col in existing_targets:
-    df[col] = df[col].replace(na_strings, np.nan)
+    df[col] = pd.to_numeric(df[col], errors='coerce')
 
-# Alle Zeilen mit NaN in Zielspalten entfernen
+# Zeilen mit NaN in den Zielspalten entfernen
 df_clean = df.dropna(subset=existing_targets)
+
+# Optional: Hinweis zu entfernten Zeilen (NaN-Werte)
+for col in existing_targets:
+    removed = df[col].isna().sum() - df_clean[col].isna().sum()
+    if removed > 0:
+        st.info(f"In Zielspalte '{col}' wurden {removed} ungültige Werte entfernt.")
 
 # Eingabe- und Ausgabedaten trennen
 X = df_clean.drop(columns=existing_targets)
-y = df_clean[existing_targets].astype(float)
+y = df_clean[existing_targets]
 
 # Kategorische und numerische Variablen erkennen
 kategorisch = X.select_dtypes(include="object").columns.tolist()
@@ -45,7 +47,7 @@ numerisch = X.select_dtypes(exclude="object").columns.tolist()
 # One-Hot-Encoding der Eingabedaten
 X_encoded = pd.get_dummies(X)
 
-# Debug-Ausgaben (optional)
+# Debug-Ausgaben (kann entfernt werden)
 st.write("Shape X_encoded:", X_encoded.shape)
 st.write("Shape y:", y.shape)
 st.write("Beispiel Zielwerte:")
@@ -93,6 +95,3 @@ prediction = modell.predict(input_encoded)[0]
 st.subheader("🔮 Vorhergesagte Eigenschaften")
 for i, ziel in enumerate(existing_targets):
     st.metric(label=ziel, value=round(prediction[i], 2))
-
-
-
