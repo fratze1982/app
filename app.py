@@ -30,7 +30,7 @@ df_clean = df.dropna(subset=existing_targets)
 
 # Eingabe- und Ausgabedaten trennen
 X = df_clean.drop(columns=existing_targets)
-y = df_clean[existing_targets]
+y = df_clean[existing_targets].astype(float)  # Wichtig: in float umwandeln
 
 # Kategorische und numerische Variablen erkennen
 kategorisch = X.select_dtypes(include="object").columns.tolist()
@@ -38,6 +38,12 @@ numerisch = X.select_dtypes(exclude="object").columns.tolist()
 
 # One-Hot-Encoding der Eingabedaten
 X_encoded = pd.get_dummies(X)
+
+# Debug-Ausgaben vor Training (kannst du später auskommentieren)
+st.write("Shape X_encoded:", X_encoded.shape)
+st.write("Shape y:", y.shape)
+st.write("Zieldaten Beispiel:")
+st.write(y.head())
 
 # Modell trainieren
 modell = MultiOutputRegressor(RandomForestRegressor(n_estimators=150, random_state=42))
