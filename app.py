@@ -23,16 +23,13 @@ if len(existing_targets) < len(targets):
     fehlende = set(targets) - set(existing_targets)
     st.warning(f"Diese Zielspalten fehlen im Datensatz und werden ignoriert: {fehlende}")
 
-# Zielspalten in numerisch umwandeln, nicht-konvertierbare Werte werden NaN
+# Zielspalten sicher in numerische Werte umwandeln (nicht-konvertierbare zu NaN)
 for col in existing_targets:
     df[col] = pd.to_numeric(df[col], errors='coerce')
 
-# Zeilen mit NaN in Zielspalten entfernen
-df_clean = df.dropna(subset=existing_targets)
-
 # Eingabe- und Ausgabedaten trennen
-X = df_clean.drop(columns=existing_targets)
-y = df_clean[existing_targets]
+X = df.drop(columns=existing_targets)
+y = df[existing_targets]
 
 # Kategorische und numerische Variablen erkennen
 kategorisch = X.select_dtypes(include="object").columns.tolist()
@@ -41,24 +38,27 @@ numerisch = X.select_dtypes(exclude="object").columns.tolist()
 # One-Hot-Encoding der Eingabedaten
 X_encoded = pd.get_dummies(X)
 
-# Debug-Ausgaben (optional)
-st.write("Shape X_encoded:", X_encoded.shape)
-st.write("Shape y:", y.shape)
-st.write("Datentypen y:")
-st.write(y.dtypes)
-st.write("NaN-Werte in y:")
-st.write(y.isna().sum())
+# Gemeinsamen DataFrame bauen, NaN in Zielspalten und Eingaben entfernen
+combined = pd.concat([X_encoded, y], axis=1)
+combined_clean = combined.dropna()
+
+# Saubere X_encoded und y zurückbekommen
+X_encoded_clean = combined_clean[X_encoded.columns]
+y_clean = combined_clean[y.columns]
+
+# Debug-Ausgaben
+st.write(f"Shape X_encoded_clean: {X_encoded_clean.shape}")
+st.write(f"Shape y_clean: {y_clean.shape}")
+st.write("NaN-Werte in y_clean:", y_clean.isna().sum())
 
 # Modell dynamisch wählen
-if len(existing_targets) == 1:
-    # Einzelziel: y als 1D-Array, RandomForestRegressor direkt nutzen
-    y_single = y.values.ravel()
+if y_clean.shape[1] == 1:
+    y_array = y_clean.values.ravel()
     modell = RandomForestRegressor(n_estimators=150, random_state=42)
-    modell.fit(X_encoded, y_single)
+    modell.fit(X_encoded_clean, y_array)
 else:
-    # Mehrziel: MultiOutputRegressor nutzen
     modell = MultiOutputRegressor(RandomForestRegressor(n_estimators=150, random_state=42))
-    modell.fit(X_encoded, y)
+    modell.fit(X_encoded_clean, y_clean)
 
 # Streamlit UI
 st.title("🎨 KI-Vorhersage für Lackrezepturen")
@@ -68,13 +68,13 @@ user_input = {}
 st.sidebar.header("🔧 Eingabewerte anpassen")
 
 for col in numerisch:
-    min_val = float(df_clean[col].min())
-    max_val = float(df_clean[col].max())
-    mean_val = float(df_clean[col].mean())
+    min_val = float(df[col].min())
+    max_val = float(df[col].max())
+    mean_val = float(df[col].mean())
     user_input[col] = st.sidebar.slider(col, min_val, max_val, mean_val)
 
 for col in kategorisch:
-    options = sorted(df_clean[col].dropna().unique())
+    options = sorted(df[col].dropna().unique())
     user_input[col] = st.sidebar.selectbox(col, options)
 
 input_df = pd.DataFrame([user_input])
@@ -87,7 +87,7 @@ for col in X_encoded.columns:
 input_encoded = input_encoded[X_encoded.columns]
 
 # Vorhersage
-if len(existing_targets) == 1:
+if y_clean.shape[1] == 1:
     prediction = modell.predict(input_encoded)[0]
     st.subheader("🔮 Vorhergesagte Eigenschaft")
     st.metric(label=existing_targets[0], value=round(prediction, 2))
