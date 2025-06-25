@@ -1,4 +1,5 @@
 import pandas as pd
+import numpy as np
 import streamlit as st
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.multioutput import MultiOutputRegressor
@@ -16,21 +17,26 @@ targets = [
     "Kosten Gesamt kg"
 ]
 
-# Säubere auch die Zielnamen (falls hier Leerzeichen drin sind)
+# Zielnamen ebenfalls säubern
 targets = [t.strip() for t in targets]
 
-# Überprüfen, welche Zielspalten tatsächlich im DataFrame sind
+# Existierende Zielspalten prüfen
 existing_targets = [col for col in targets if col in df.columns]
 if len(existing_targets) < len(targets):
     fehlende = set(targets) - set(existing_targets)
     st.warning(f"Diese Zielspalten fehlen im Datensatz und werden ignoriert: {fehlende}")
 
-# Fehlende Werte in Zielspalten entfernen
+# Nicht-numerische Strings in Zielspalten durch NaN ersetzen
+na_strings = ["-", "n.a.", "unbekannt", ""]  # ggf. anpassen!
+for col in existing_targets:
+    df[col] = df[col].replace(na_strings, np.nan)
+
+# Alle Zeilen mit NaN in Zielspalten entfernen
 df_clean = df.dropna(subset=existing_targets)
 
 # Eingabe- und Ausgabedaten trennen
 X = df_clean.drop(columns=existing_targets)
-y = df_clean[existing_targets].astype(float)  # Wichtig: in float umwandeln
+y = df_clean[existing_targets].astype(float)
 
 # Kategorische und numerische Variablen erkennen
 kategorisch = X.select_dtypes(include="object").columns.tolist()
@@ -39,10 +45,10 @@ numerisch = X.select_dtypes(exclude="object").columns.tolist()
 # One-Hot-Encoding der Eingabedaten
 X_encoded = pd.get_dummies(X)
 
-# Debug-Ausgaben vor Training (kannst du später auskommentieren)
+# Debug-Ausgaben (optional)
 st.write("Shape X_encoded:", X_encoded.shape)
 st.write("Shape y:", y.shape)
-st.write("Zieldaten Beispiel:")
+st.write("Beispiel Zielwerte:")
 st.write(y.head())
 
 # Modell trainieren
@@ -87,5 +93,6 @@ prediction = modell.predict(input_encoded)[0]
 st.subheader("🔮 Vorhergesagte Eigenschaften")
 for i, ziel in enumerate(existing_targets):
     st.metric(label=ziel, value=round(prediction[i], 2))
+
 
 
