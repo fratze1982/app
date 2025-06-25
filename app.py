@@ -3,8 +3,8 @@ import streamlit as st
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.multioutput import MultiOutputRegressor
 
-# CSV-Daten laden
-df = pd.read_csv("rezeptdaten.csv", encoding="utf-8", sep=";")
+# CSV-Daten laden mit Komma als Dezimaltrennzeichen
+df = pd.read_csv("rezeptdaten.csv", encoding="utf-8", sep=";", decimal=",")
 
 # Spaltennamen bereinigen
 df.columns = df.columns.str.strip()
