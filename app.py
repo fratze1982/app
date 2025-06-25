@@ -77,7 +77,10 @@ for col in numerisch:
     min_val = float(df[col].min())
     max_val = float(df[col].max())
     mean_val = float(df[col].mean())
-    user_input[col] = st.sidebar.slider(col, min_val, max_val, mean_val)
+    if min_val < max_val:
+        user_input[col] = st.sidebar.slider(col, min_val, max_val, mean_val)
+    else:
+        user_input[col] = st.sidebar.number_input(col, value=mean_val)
 
 for col in kategorisch:
     options = sorted(df[col].dropna().unique())
