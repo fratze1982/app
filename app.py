@@ -4,7 +4,7 @@ from sklearn.ensemble import RandomForestRegressor
 from sklearn.multioutput import MultiOutputRegressor
 
 # CSV-Daten laden
-df = pd.read_csv("rezeptdaten.csv")
+df = pd.read_csv("rezeptdaten.csv", encoding="latin1")
 
 # Zielgrößen definieren
 targets = [
