@@ -6,10 +6,10 @@ from sklearn.multioutput import MultiOutputRegressor
 # CSV-Daten laden
 df = pd.read_csv("rezeptdaten.csv", encoding="utf-8", sep=";")
 
-# Spaltennamen säubern (Leerzeichen am Anfang/Ende entfernen)
+# Spaltennamen bereinigen
 df.columns = df.columns.str.strip()
 
-# Zielgrößen definieren und säubern
+# Zielgrößen definieren
 targets = [
     "Glanz 20", "Glanz 60", "Glanz 85",
     "Viskosität lowshear", "Viskosität midshear", "Brookfield",
@@ -23,18 +23,12 @@ if len(existing_targets) < len(targets):
     fehlende = set(targets) - set(existing_targets)
     st.warning(f"Diese Zielspalten fehlen im Datensatz und werden ignoriert: {fehlende}")
 
-# Zielspalten sicher in numerische Werte umwandeln, nicht-konvertierbare Werte werden NaN
+# Zielspalten in numerisch umwandeln, nicht-konvertierbare Werte werden NaN
 for col in existing_targets:
     df[col] = pd.to_numeric(df[col], errors='coerce')
 
-# Zeilen mit NaN in den Zielspalten entfernen
+# Zeilen mit NaN in Zielspalten entfernen
 df_clean = df.dropna(subset=existing_targets)
-
-# Optional: Hinweis zu entfernten Zeilen (NaN-Werte)
-for col in existing_targets:
-    removed = df[col].isna().sum() - df_clean[col].isna().sum()
-    if removed > 0:
-        st.info(f"In Zielspalte '{col}' wurden {removed} ungültige Werte entfernt.")
 
 # Eingabe- und Ausgabedaten trennen
 X = df_clean.drop(columns=existing_targets)
@@ -47,36 +41,42 @@ numerisch = X.select_dtypes(exclude="object").columns.tolist()
 # One-Hot-Encoding der Eingabedaten
 X_encoded = pd.get_dummies(X)
 
-# Debug-Ausgaben (kann entfernt werden)
+# Debug-Ausgaben (optional)
 st.write("Shape X_encoded:", X_encoded.shape)
 st.write("Shape y:", y.shape)
-st.write("Beispiel Zielwerte:")
-st.write(y.head())
+st.write("Datentypen y:")
+st.write(y.dtypes)
+st.write("NaN-Werte in y:")
+st.write(y.isna().sum())
 
-# Modell trainieren
-modell = MultiOutputRegressor(RandomForestRegressor(n_estimators=150, random_state=42))
-modell.fit(X_encoded, y)
+# Modell dynamisch wählen
+if len(existing_targets) == 1:
+    # Einzelziel: y als 1D-Array, RandomForestRegressor direkt nutzen
+    y_single = y.values.ravel()
+    modell = RandomForestRegressor(n_estimators=150, random_state=42)
+    modell.fit(X_encoded, y_single)
+else:
+    # Mehrziel: MultiOutputRegressor nutzen
+    modell = MultiOutputRegressor(RandomForestRegressor(n_estimators=150, random_state=42))
+    modell.fit(X_encoded, y)
 
 # Streamlit UI
 st.title("🎨 KI-Vorhersage für Lackrezepturen")
 
-# Eingabeformular in der Sidebar
+# Eingabeformular in Sidebar
 user_input = {}
 st.sidebar.header("🔧 Eingabewerte anpassen")
 
-# Numerische Eingaben als Slider
 for col in numerisch:
     min_val = float(df_clean[col].min())
     max_val = float(df_clean[col].max())
     mean_val = float(df_clean[col].mean())
     user_input[col] = st.sidebar.slider(col, min_val, max_val, mean_val)
 
-# Kategorische Eingaben als Dropdown
 for col in kategorisch:
     options = sorted(df_clean[col].dropna().unique())
     user_input[col] = st.sidebar.selectbox(col, options)
 
-# Eingabe in DataFrame und One-Hot-Encoding
 input_df = pd.DataFrame([user_input])
 input_encoded = pd.get_dummies(input_df)
 
@@ -84,14 +84,15 @@ input_encoded = pd.get_dummies(input_df)
 for col in X_encoded.columns:
     if col not in input_encoded.columns:
         input_encoded[col] = 0
-
-# Spalten in korrekter Reihenfolge sortieren
 input_encoded = input_encoded[X_encoded.columns]
 
-# Vorhersage berechnen
-prediction = modell.predict(input_encoded)[0]
-
-# Ergebnisse anzeigen
-st.subheader("🔮 Vorhergesagte Eigenschaften")
-for i, ziel in enumerate(existing_targets):
-    st.metric(label=ziel, value=round(prediction[i], 2))
+# Vorhersage
+if len(existing_targets) == 1:
+    prediction = modell.predict(input_encoded)[0]
+    st.subheader("🔮 Vorhergesagte Eigenschaft")
+    st.metric(label=existing_targets[0], value=round(prediction, 2))
+else:
+    prediction = modell.predict(input_encoded)[0]
+    st.subheader("🔮 Vorhergesagte Eigenschaften")
+    for i, ziel in enumerate(existing_targets):
+        st.metric(label=ziel, value=round(prediction[i], 2))
